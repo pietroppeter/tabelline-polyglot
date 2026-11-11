@@ -1,0 +1,53 @@
+name: Ports
+
+# Builds libtabelline, builds and runs every port's planets example, and checks that each prints
+# the same HTML as tabelline itself (tools/polyglot.nim). A port that prints something else, or
+# does not build, fails the run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ports-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ports:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.2.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ hashFiles('atlas.lock') }}
+      - run: sh tools/setup.sh
+
+      # the other languages (Rust and gcc come with the runner)
+      - name: Zig
+        run: pip install ziglang==0.17.1
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"      # 27 or later: the Erlang port writes the spec with OTP's json
+          elixir-version: "1.19"
+          gleam-version: "1.19.1"
+
+      - name: Every port, compared with Nim
+        env:
+          ZIG: python3 -m ziglang
+        run: |
+          nim r --hints:off tools/polyglot.nim | tee report.txt
+          { echo '```text'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

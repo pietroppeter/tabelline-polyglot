@@ -1,0 +1,7 @@
+build/
+out/
+rust/target/
+rust/Cargo.lock
+gleam/build/
+erl_crash.dump
+deps/
