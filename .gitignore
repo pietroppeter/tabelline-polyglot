@@ -5,3 +5,9 @@ rust/Cargo.lock
 gleam/build/
 erl_crash.dump
 deps/
+gleam/src/tabelline_nim.mjs
+lustre/build/
+lustre/demo/build/
+lustre/demo/dist/
+lustre/manifest.toml
+lustre/demo/manifest.toml

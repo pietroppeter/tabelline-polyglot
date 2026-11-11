@@ -99,7 +99,9 @@ pub fn main() {
 }
 
 @external(erlang, "tabelline_ffi", "print")
+@external(javascript, "./tabelline_ffi.mjs", "print")
 fn print(text: String) -> Nil
 
 @external(erlang, "tabelline_ffi", "arguments")
+@external(javascript, "./tabelline_ffi.mjs", "arguments_")
 fn arguments() -> List(String)

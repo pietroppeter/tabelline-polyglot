@@ -7,7 +7,9 @@ and Nim compiles to C. So tabelline can be a C library, and every language that 
 a tabelline table. This repository checks that, end to end, for C, Zig, Rust, Julia, Java,
 Scala, Erlang, Gleam, Elixir, Go and Ruby. Each port draws the same table (the
 planets), and `tools/polyglot.nim` checks that every one prints the same HTML as tabelline
-itself, byte for byte.
+itself, byte for byte. Nim also compiles to JavaScript, so Gleam can draw the table on its
+JavaScript target too, and a web page can build tables with nothing on a server:
+[the demo](https://pietroppeter.github.io/tabelline-polyglot/), a Lustre app (`lustre/`).
 
 These are proofs of concept, not ports yet: a working table in each language, for someone to
 start a port from, in that language's own style. Two posts in tabelline's devlog tell the why and
@@ -46,6 +48,8 @@ underscores, so `fmt_number` is `fmtNumber`. `tbl_verbs()` lists them, as JSON.
 | `jvm/` | Java's foreign function and memory API (Java 22+), no JNI |
 | `beam/` | one NIF (`render_spec`, on a dirty scheduler) and an Erlang module writing the spec with OTP 27's `json` |
 | `gleam/` | a typed table of your own records, `Table(row)`: columns read from them, formats, styles, rows and errors as Gleam types, with docs and tests; the same NIF ([gleam/README.md](gleam/README.md)) |
+| `js/` | tabelline compiled by `nim js`, one function on the spec of layer 1, for `gleam/` on its JavaScript target (the port `gleam-js`) |
+| `lustre/` | `tabelline_lustre.view(table)`, a table as a [Lustre](https://hexdocs.pm/lustre/) element, and `demo/`, a Lustre app that builds its tables again at every change, in the browser |
 | `elixir/` | keyword lists and pipes; the same NIF |
 | `go/` | cgo; a table from a slice of structs (tags name the columns), steps that keep the first error, as `bufio.Scanner` does |
 | `scala/` | Scala 3 on Java's foreign function API: columns from a case class (a `Mirror`), `md"..."`, `col("moons") > 50`, `Either` for errors |
@@ -69,7 +73,12 @@ jars are downloaded from Maven Central into `build/scala/jars`. Checked on 11 No
 2.2.4, gcc 13.3, Zig 0.17.1, Rust 1.97, Julia 1.13.3, Java 25, Scala 3.10.1, Erlang/OTP 29,
 Gleam 1.19.1, Elixir 1.20.5, Go 1.24 and Ruby 3.3 (`results.tsv`).
 
-The bindings' own tests: `gleam test` in `gleam/` (with `TABELLINE_NIF_DIR=../build/beam/priv`),
+The demo, one HTML file: `nim r lustre/demo/build.nim` (Gleam and esbuild on the `PATH`, or in
+`GLEAM` and `ESBUILD`), into `lustre/demo/dist/index.html`; CI (`.github/workflows/demo.yml`)
+publishes it on GitHub Pages.
+
+The bindings' own tests: `gleam test` in `gleam/` (with `TABELLINE_NIF_DIR=../build/beam/priv`;
+`gleam test --target javascript` after `nim r js/build.nim`),
 `go test ./...` in `go/`, `ruby ruby/test/test_tabelline.rb`.
 
 ## Layout
@@ -80,6 +89,8 @@ tabelline-polyglot/
   spec/      the JSON spec: planets.json
   nim/       the reference, in tabelline itself
   c/ zig/ rust/ julia/ jvm/ scala/ beam/ gleam/ elixir/ go/ ruby/   a binding and an example each
+  js/        tabelline for JavaScript (nim js), for gleam/ on its JavaScript target
+  lustre/    tabelline_lustre (a table as a Lustre element) and demo/, the app in the browser
   tools/     setup.sh; polyglot.nim: build everything, run every example, compare with Nim
 ```
 

@@ -1,0 +1,12 @@
+name = "tabelline_lustre"
+version = "0.1.0"
+description = "tabelline's tables in a Lustre app: a table is an element."
+licences = ["MIT"]
+repository = { type = "github", user = "pietroppeter", repo = "tabelline-polyglot", path = "lustre" }
+gleam = ">= 1.11.0"
+
+# Its own package, so that tabelline itself keeps no dependencies.
+[dependencies]
+tabelline = { path = "../gleam" }
+lustre = ">= 5.7.0 and < 6.0.0"
+gleam_stdlib = ">= 0.60.0 and < 2.0.0"

@@ -105,8 +105,15 @@ The same table is HTML with `to_html`, a whole page with `to_page`, and Markdown
 The drawing is done by [tabelline](https://github.com/pietroppeter/tabelline), a Nim library.
 The Gleam side writes the table as JSON (its data, its settings and its steps), and on the BEAM
 one NIF hands it to `libtabelline`, the same C library every other port of this repository
-calls, on a dirty scheduler. `tools/polyglot.nim` at the root checks that this program prints
-exactly the same HTML as tabelline itself.
+calls, on a dirty scheduler. On the JavaScript target the same JSON goes to tabelline compiled
+by `nim js` (`src/tabelline_nim.mjs`, written by `nim r js/build.nim`), so a table can be built
+in a web page, with nothing on a server: `../lustre/` puts it in a Lustre app.
+`tools/polyglot.nim` at the root checks that this program prints exactly the same HTML as
+tabelline itself, on both targets (the ports `gleam` and `gleam-js`).
+
+A table can also start from one of tabelline's datasets: `tabelline.from_dataset(Gtcars)`, and
+`tabelline.preview(top: 5, bottom: 1)` shows only its first and last rows. The JavaScript build
+leaves the bigger datasets out unless asked for (`js/build.nim --datasets`), to weigh less.
 
 ## Running it
 
@@ -117,4 +124,12 @@ and this package, and runs the example. Then, here:
 gleam run -m planets -- text
 TABELLINE_NIF_DIR=../build/beam/priv gleam test
 gleam docs build
+```
+
+On JavaScript, from the root, `nim r js/build.nim` (the export, 3.2 MB, about 260 KB gzipped
+once minified), then here:
+
+```sh
+gleam run --target javascript -m planets -- text
+gleam test --target javascript
 ```

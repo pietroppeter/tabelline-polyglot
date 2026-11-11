@@ -1,0 +1,60 @@
+name: Demo
+
+# Builds the Lustre demo (lustre/demo: Gleam on its JavaScript target, tabelline compiled by
+# nim js) into one HTML file and, on main, publishes it on GitHub Pages. Pages must use
+# "GitHub Actions" as its source (Settings > Pages).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: demo-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.2.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ hashFiles('atlas.lock') }}
+      - run: sh tools/setup.sh
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: false     # the JavaScript target only
+          gleam-version: "1.19.1"
+      - run: npm install --global esbuild@0.25
+
+      - name: The tabelline package on JavaScript, tested in Node
+        run: |
+          nim r --hints:off js/build.nim
+          cd gleam && gleam test --target javascript
+
+      - name: The demo
+        run: nim r --hints:off lustre/demo/build.nim
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: lustre/demo/dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

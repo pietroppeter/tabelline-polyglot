@@ -6,12 +6,15 @@ pub opaque type Json {
 }
 
 @external(erlang, "tabelline_ffi", "json_string")
+@external(javascript, "../../tabelline_ffi.mjs", "json_string")
 fn encode_string(s: String) -> String
 
 @external(erlang, "tabelline_ffi", "json_number")
+@external(javascript, "../../tabelline_ffi.mjs", "json_int")
 fn encode_int(i: Int) -> String
 
 @external(erlang, "tabelline_ffi", "json_number")
+@external(javascript, "../../tabelline_ffi.mjs", "json_float")
 fn encode_float(f: Float) -> String
 
 pub fn string(s: String) -> Json {

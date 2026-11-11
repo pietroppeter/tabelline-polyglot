@@ -8,6 +8,7 @@ julia	ccall; one function per verb, made at load time	3217	same HTML
 jvm	Java 22+ foreign function API (no JNI)	167	same HTML
 erlang	one NIF, the spec written by OTP's json	202	same HTML
 gleam	a typed table of your own records, the same NIF	210	same HTML
+gleam-js	the same Gleam, on its JavaScript target: tabelline by nim js	204	same HTML
 go	cgo; a slice of structs, tags name the columns	6	same HTML
 scala	Scala 3 on the FFM API; columns from a case class	272	same HTML
 ruby	Fiddle (standard library); a block, every verb a method	63	same HTML

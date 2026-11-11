@@ -6,7 +6,7 @@
 ##
 ## tabelline comes from deps/ (`sh tools/setup.sh`, put on the path by nim.cfg), or from
 ## TABELLINE_SRC (a checkout's src/). Toolchains come from the PATH, or from these variables: ZIG (a command, default `zig`), JULIA, JAVA_HOME, ERL_BIN (the
-## bin/ of Erlang/OTP 27+), GLEAM, ELIXIR_BIN.
+## bin/ of Erlang/OTP 27+), GLEAM, ELIXIR_BIN. The gleam-js port needs Node too.
 
 import std/[os, osproc, strutils, times, monotimes, sequtils, math]
 import tabelline
@@ -89,6 +89,9 @@ let ports = @[
   Port(name: "gleam", how: "a typed table of your own records, the same NIF",
        steps: @["cd gleam && " & tool("GLEAM", "gleam") & " build"],
        run: "TABELLINE_NIF_DIR=build/beam/priv " & erl & " -noshell -pa gleam/build/dev/erlang/tabelline/ebin -eval 'planets:main(), halt().'"),
+  Port(name: "gleam-js", how: "the same Gleam, on its JavaScript target: tabelline by nim js",
+       steps: @["nim r --hints:off js/build.nim", "cd gleam && " & tool("GLEAM", "gleam") & " build --target javascript"],
+       run: "node --input-type=module -e \"import { main } from './gleam/build/dev/javascript/tabelline/planets.mjs'; main()\""),
   Port(name: "go", how: "cgo; a slice of structs, tags name the columns",
        steps: @["cd go && go build -o ../build/planets_go ./examples/planets"], run: "build/planets_go"),
   Port(name: "scala", how: "Scala 3 on the FFM API; columns from a case class",
@@ -147,7 +150,7 @@ let report = tabella(summary, rownameCol = "port"):
     result: "Result"
   fmtNumber "ms", decimals = 0
   subMissing "ms", missingText = "—"
-  tabSourceNote "Run time includes starting the program (the JVM, the BEAM, Julia)."
+  tabSourceNote "Run time includes starting the program (the JVM, the BEAM, Julia, Node)."
 echo report
 var tsv = "port\thow\tms\tresult\n"
 for i, n in names: tsv.add n & "\t" & hows[i] & "\t" & (if ms[i].isNaN: "" else: $int(ms[i])) & "\t" & results[i] & "\n"

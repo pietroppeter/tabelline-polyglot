@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tabelline, in your browser</title>
+<style>
+:root {
+  --paper: #fffbfe; --ink: #2f2f2f; --pink: #ffaff3; --blue: #a6f0fc; --muted: #6b6470;
+  --line: color-mix(in srgb, var(--ink) 18%, transparent);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+[hidden] { display: none !important; }
+.page { max-width: 760px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+.intro h1 { font-size: 1.7rem; line-height: 1.15; margin: .5rem 0 .4rem; }
+.intro h1::after { content: ""; display: block; width: 3.5rem; height: .35rem; margin-top: .5rem;
+  background: linear-gradient(90deg, var(--pink) 50%, var(--blue) 50%); border-radius: 1rem; }
+.lede { color: var(--muted); margin: 0 0 1rem; }
+section { margin-top: 1.6rem; }
+section h2 { font-size: 1.2rem; margin: 0 0 .6rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .75rem 1rem;
+  padding: .9rem; border: 1px solid var(--line); border-radius: .6rem; background: #fff; }
+.field { display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; color: var(--muted); }
+.field span { font-weight: 600; }
+.field input:not([type=range]), .field select { font: inherit; font-size: 1rem; color: var(--ink);
+  padding: .35rem .5rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--paper); }
+.field input[type=range] { accent-color: #d35fc0; width: 100%; }
+.formats { display: flex; gap: .4rem; }
+.formats button { font: inherit; font-size: .9rem; padding: .3rem .7rem; border-radius: 1rem;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
+.formats button.on { background: var(--pink); border-color: #d35fc0; font-weight: 600; }
+.took { font-size: .8rem; color: var(--muted); margin: .9rem 0 .4rem; font-variant-numeric: tabular-nums; }
+div.tabelline { overflow-x: auto; }
+body pre.tabelline { font: 12.5px/1.35 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: #fff;
+  border: 1px solid var(--line); border-radius: .5rem; padding: .75rem; margin: 0; overflow-x: auto; }
+.tabelline-error { color: #b00020; }
+.how { margin-top: 2rem; font-size: .9rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 1rem; }
+.how a { color: inherit; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<footer class="page how">How it works: tabelline's Gleam binding writes each table as JSON;
+tabelline, compiled with <code>nim js</code>, reads it and writes the HTML. Gleam on the JavaScript target,
+Lustre for the page, Nim for the tables, all in one script, with nothing on a server.
+The code: <a href="https://github.com/pietroppeter/tabelline-polyglot/tree/main/lustre">tabelline-polyglot</a>.</footer>
+<script type="module">
+/*APP*/
+</script>
+</body>
+</html>

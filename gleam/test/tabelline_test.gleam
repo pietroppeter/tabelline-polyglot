@@ -2,7 +2,7 @@
 //// the expression that failed. The NIF must be built first (`tools/polyglot.nim gleam`).
 ////
 
-import tabelline.{DuplicateColumn, Markdown, Plain, Rejected}
+import tabelline.{DuplicateColumn, Exibble, Markdown, Plain, Rejected}
 import tabelline/column
 import tabelline/format
 
@@ -23,6 +23,8 @@ pub fn main() {
   a_table_draws_as_markdown()
   two_columns_with_one_name_are_an_error()
   a_step_on_a_missing_column_is_rejected()
+  a_dataset_draws_as_a_preview()
+  a_whole_float_stays_a_float()
 }
 
 fn the_spec_lists_columns_in_order_and_steps_after_the_header() {
@@ -64,3 +66,27 @@ fn a_step_on_a_missing_column_is_rejected() {
     |> tabelline.to_html
   Nil
 }
+
+fn a_dataset_draws_as_a_preview() {
+  let table =
+    tabelline.from_dataset(Exibble)
+    |> tabelline.preview(top: 2, bottom: 1)
+  assert tabelline.to_json(table)
+    == "{\"data\":{\"dataset\":\"exibble\"},\"verbs\":[],\"preview\":{\"topN\":2,\"bottomN\":1}}"
+  let assert Ok(markdown) = tabelline.to_markdown(table)
+  assert contains(markdown, "| 3..7 |")
+}
+
+// On JavaScript a Float is a number, and 2.0 is 2: the spec must still say 2.0.
+fn a_whole_float_stays_a_float() {
+  let spec =
+    [Fruit("melon", 2.0, Ok(1))]
+    |> tabelline.from_list
+    |> column.float("price", fn(fruit) { fruit.price })
+    |> tabelline.to_json
+  assert spec == "{\"data\":{\"columns\":{\"price\":[2.0]}},\"verbs\":[]}"
+}
+
+@external(erlang, "tabelline_test_ffi", "contains")
+@external(javascript, "./tabelline_test_ffi.mjs", "contains")
+fn contains(haystack: String, needle: String) -> Bool
