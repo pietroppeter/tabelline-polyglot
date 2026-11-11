@@ -1,10 +1,13 @@
 name = "tabelline"
-version = "0.0.1"
-description = "Great tables for Gleam: tabelline (Nim) on the BEAM through a NIF. A proof of concept."
+version = "0.1.0"
+description = "Great tables for Gleam: display tables built from parts, formatted and styled. A proof of concept over tabelline (Nim)."
 licences = ["MIT"]
+repository = { type = "github", user = "pietroppeter", repo = "tabelline-polyglot", path = "gleam" }
+gleam = ">= 1.11.0"
 target = "erlang"
 
-# No dependencies, not even gleam_stdlib: the sandbox it was written in could not reach Hex.
+# No dependencies, not even gleam_stdlib: it builds where Hex cannot be reached (the sandbox it
+# was written in). The few things it needs from Erlang are in src/tabelline_ffi.erl.
 [dependencies]
 
 [dev-dependencies]

@@ -24,5 +24,6 @@ Notes for coding agents (and people). What the repository is, and how to run it,
 Package hosts are often blocked in a coding-agent sandbox. What worked (11 Nov 2026):
 Zig with `pip install ziglang` (`ZIG="python3 -m ziglang"`); Java 25 from apt; Erlang/OTP 29,
 Gleam, Elixir and Julia from conda-forge `.conda` files (conda.anaconda.org; unzip, then
-`tar --zstd`, and replace the build prefix in the files that hold it); Rust and gcc preinstalled.
+`tar --zstd`, and replace the build prefix in the files that hold it); Rust, gcc, Go and Ruby
+preinstalled; Scala needs only Java (`tools/polyglot.nim` downloads its compiler from Maven Central).
 Point `ERL_BIN`, `GLEAM`, `ELIXIR_BIN`, `JULIA`, `JAVA_HOME` at them.

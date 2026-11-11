@@ -1,300 +1,543 @@
-//// Great tables for Gleam: tabelline (Nim) on the BEAM. A proof of concept.
+//// 📊 Great tables for Gleam: display tables built from parts, formatted and styled, written
+//// as HTML, text or Markdown.
 ////
-//// A table is a plain Gleam value: columns, settings and verbs, added with `|>`. Nothing runs
-//// until `render`, which writes the table as JSON and hands it to libtabelline through one NIF
-//// (`tabelline_nif`), on a dirty scheduler.
+//// A table starts from a list of your own records; then each step adds one thing, with `|>`:
+//// a column, a title, a label, a format, a style, a note.
 ////
 //// ```gleam
-//// tabelline.new()
-//// |> tabelline.strings("planet", ["Mercury", "Venus"])
-//// |> tabelline.floats("mass", [0.33, 4.87])
-//// |> tabelline.rowname("planet")
-//// |> tabelline.header("The planets", Markdown("of the *Solar System*"))
-//// |> tabelline.fmt_number(columns: ["mass"], decimals: 2)
-//// |> tabelline.render(AsHtml)
+//// import tabelline.{Plain}
+//// import tabelline/column
+//// import tabelline/format
+////
+//// pub type Planet {
+////   Planet(name: String, diameter: Int, mass: Float)
+//// }
+////
+//// pub fn main() {
+////   let assert Ok(html) =
+////     [Planet("Mercury", 4879, 0.33), Planet("Venus", 12_104, 4.87)]
+////     |> tabelline.from_list
+////     |> column.string("planet", fn(planet) { planet.name })
+////     |> column.int("diameter", fn(planet) { planet.diameter })
+////     |> column.float("mass", fn(planet) { planet.mass })
+////     |> tabelline.stub("planet")
+////     |> tabelline.title(Plain("The planets"))
+////     |> tabelline.format(["mass"], with: format.number(decimals: 2))
+////     |> tabelline.to_html
+//// }
 //// ```
+////
+//// Nothing is drawn until `to_html`, `to_text` or `to_markdown`: until then a table is a plain
+//// Gleam value, and you can pass it around, keep it, and add to it. The drawing is done by
+//// [tabelline](https://github.com/pietroppeter/tabelline), a Nim library, which reads the
+//// table as JSON; on the BEAM it is called through a NIF.
+////
 
-import tabelline/json.{type Json}
+import tabelline/format.{type Format}
+import tabelline/internal/json.{type Json}
+import tabelline/internal/table.{Header, NoHeader, Table}
+import tabelline/location.{type Location}
+import tabelline/rows
+import tabelline/style.{type Style}
 
-pub opaque type Table {
-  Table(
-    columns: List(#(String, Json)),
-    settings: List(#(String, Json)),
-    verbs: List(Json),
-  )
-}
+// --- TYPES -------------------------------------------------------------------
 
-/// Text in a title, a label or a note.
+/// A table of rows of type `row`, ready to be drawn or to get one more step.
+///
+pub type Table(row) =
+  table.Table(row)
+
+/// Text in a title, a label or a note: plain, or written in Markdown or HTML.
+///
 pub type Text {
   Plain(String)
   Markdown(String)
   Html(String)
 }
 
-pub type Format {
-  AsHtml
-  AsPage
-  AsText
-  AsMarkdown
+/// The colours a colour scale goes through, from the lowest value to the highest.
+///
+pub type Palette {
+  Blues
+  Greens
+  Reds
+  Viridis
+  /// Red, white and blue: for values around a middle.
+  RedBlue
+  /// Red, yellow and green.
+  RedYellowGreen
+  /// Any colours, as CSS colours: `Colours(["#ffffff", "#2171b5"])`.
+  Colours(List(String))
 }
 
-/// Which rows of the body.
-pub type Rows {
-  AllRows
-  Indices(List(Int))
-  Where(column: String, op: String, value: Json)
+/// What a summary row computes over the rows above it.
+///
+pub type Aggregate {
+  Sum
+  Mean
+  Median
+  Min
+  Max
+  Count
+  StandardDeviation
 }
 
-/// A part of the table, for styles and footnotes.
-pub type Location {
-  Title
-  Subtitle
-  ColumnLabels(columns: List(String))
-  Body(columns: List(String), rows: Rows)
-  Stub(rows: Rows)
-  SourceNotes
+/// Why a table could not be drawn.
+///
+pub type Error {
+  /// Two columns have the same name.
+  DuplicateColumn(name: String)
+  /// tabelline itself refused the table: a step names a column the table does not have, or
+  /// gives a value it cannot use. The reason says which.
+  Rejected(reason: String)
 }
 
-pub type Style {
-  Fill(colour: String)
-  Bold
-  Italic
-  TextColour(colour: String)
-  Css(declarations: String)
+// --- BUILDING A TABLE --------------------------------------------------------
+
+/// A table of these rows, still with no columns: add them with the functions of
+/// `tabelline/column`, in the order they are shown.
+///
+/// ```gleam
+/// planets
+/// |> tabelline.from_list
+/// |> column.string("planet", fn(planet) { planet.name })
+/// |> column.int("moons", fn(planet) { planet.moons })
+/// ```
+///
+pub fn from_list(rows: List(row)) -> Table(row) {
+  Table(rows:, columns: [], settings: [], header: NoHeader, verbs: [])
 }
 
-pub fn new() -> Table {
-  Table([], [], [])
+/// The stub: the column whose values name the rows, shown first and set apart.
+///
+/// ```gleam
+/// table |> tabelline.stub("planet")
+/// ```
+///
+pub fn stub(table: Table(row), column: String) -> Table(row) {
+  setting(table, "rownameCol", json.string(column))
 }
 
-// ---------------------------------------------------------------------------------- columns
-
-fn column(t: Table, name: String, values: Json) -> Table {
-  Table(..t, columns: append(t.columns, #(name, values)))
+/// The column whose values group the rows: each group gets its own label, in the order the
+/// groups first appear.
+///
+/// ```gleam
+/// table |> tabelline.group_by("type")
+/// ```
+///
+pub fn group_by(table: Table(row), column: String) -> Table(row) {
+  setting(table, "groupnameCol", json.string(column))
 }
 
-pub fn strings(t: Table, name: String, values: List(String)) -> Table {
-  column(t, name, json.array(values, json.string))
+/// The table's HTML id, for a page that styles or links it.
+///
+pub fn id(table: Table(row), id: String) -> Table(row) {
+  setting(table, "id", json.string(id))
 }
 
-pub fn ints(t: Table, name: String, values: List(Int)) -> Table {
-  column(t, name, json.array(values, json.int))
+/// The locale every format uses, unless it has its own: `"it"`, `"de"`, `"en-GB"`.
+///
+pub fn locale(table: Table(row), locale: String) -> Table(row) {
+  setting(table, "locale", json.string(locale))
 }
 
-pub fn floats(t: Table, name: String, values: List(Float)) -> Table {
-  column(t, name, json.array(values, json.float))
-}
+// --- THE HEADER AND THE FOOTER -----------------------------------------------
 
-pub fn bools(t: Table, name: String, values: List(Bool)) -> Table {
-  column(t, name, json.array(values, json.bool))
-}
-
-// --------------------------------------------------------------------------------- settings
-
-fn setting(t: Table, key: String, value: String) -> Table {
-  Table(..t, settings: append(t.settings, #(key, json.string(value))))
-}
-
-/// The column of row names: the stub.
-pub fn rowname(t: Table, column: String) -> Table {
-  setting(t, "rownameCol", column)
-}
-
-/// The column whose values group the rows.
-pub fn groupname(t: Table, column: String) -> Table {
-  setting(t, "groupnameCol", column)
-}
-
-pub fn id(t: Table, id: String) -> Table {
-  setting(t, "id", id)
-}
-
-pub fn locale(t: Table, locale: String) -> Table {
-  setting(t, "locale", locale)
-}
-
-// ------------------------------------------------------------------------------------ verbs
-
-/// Any verb of tabelline, by name (`"fmt_number"` or `"fmtNumber"`), with its arguments:
-/// a JSON array for positional ones, an object for named ones.
-pub fn verb(t: Table, name: String, args: Json) -> Table {
-  Table(..t, verbs: append(t.verbs, json.object([#(name, args)])))
-}
-
-fn text(t: Text) -> Json {
-  case t {
-    Plain(s) -> json.string(s)
-    Markdown(s) -> json.object([#("md", json.string(s))])
-    Html(s) -> json.object([#("html", json.string(s))])
+/// The title, above the table.
+///
+/// ```gleam
+/// table |> tabelline.title(Plain("The planets"))
+/// ```
+///
+pub fn title(table: Table(row), title: Text) -> Table(row) {
+  case table.header {
+    NoHeader ->
+      Table(..table, header: Header(text(title), subtitle: Error(Nil)))
+    Header(..) as header ->
+      Table(..table, header: Header(..header, title: text(title)))
   }
 }
 
-fn names(columns: List(String)) -> Json {
-  json.array(columns, json.string)
-}
-
-fn rows(r: Rows) -> Json {
-  case r {
-    AllRows -> json.object([#("all", json.bool(True))])
-    Indices(ix) -> json.array(ix, json.int)
-    Where(column, op, value) ->
-      json.object([
-        #(
-          "where",
-          json.preprocessed_array([json.string(column), json.string(op), value]),
-        ),
-      ])
+/// The subtitle, under the title. A table with a subtitle needs a title too.
+///
+/// ```gleam
+/// table
+/// |> tabelline.title(Plain("The planets"))
+/// |> tabelline.subtitle(Markdown("of the *Solar System*"))
+/// ```
+///
+pub fn subtitle(table: Table(row), subtitle: Text) -> Table(row) {
+  let title = case table.header {
+    NoHeader -> json.string("")
+    Header(title:, ..) -> title
   }
+  Table(..table, header: Header(title:, subtitle: Ok(text(subtitle))))
 }
 
-fn location(l: Location) -> Json {
-  case l {
-    Title -> json.string("title")
-    Subtitle -> json.string("subtitle")
-    SourceNotes -> json.string("sourceNotes")
-    ColumnLabels(columns) -> json.object([#("columnLabels", names(columns))])
-    Body(columns, r) ->
-      json.object([
-        #(
-          "body",
-          json.object([#("columns", names(columns)), #("rows", rows(r))]),
-        ),
-      ])
-    Stub(r) -> json.object([#("stub", json.object([#("rows", rows(r))]))])
-  }
+/// A note at the foot of the table that says where the data comes from. Each call adds one.
+///
+/// ```gleam
+/// table |> tabelline.source_note(Plain("NASA, Planetary Fact Sheet"))
+/// ```
+///
+pub fn source_note(table: Table(row), note: Text) -> Table(row) {
+  add(table, "tabSourceNote", json.object([#("note", text(note))]))
 }
 
-fn style(s: Style) -> Json {
-  case s {
-    Fill(c) -> json.object([#("fill", json.string(c))])
-    Bold ->
-      json.object([#("text", json.object([#("weight", json.string("bold"))]))])
-    Italic ->
-      json.object([#("text", json.object([#("style", json.string("italic"))]))])
-    TextColour(c) ->
-      json.object([#("text", json.object([#("color", json.string(c))]))])
-    Css(d) -> json.object([#("css", json.string(d))])
-  }
-}
-
-pub fn header(t: Table, title: String, subtitle: Text) -> Table {
-  verb(
-    t,
-    "tabHeader",
-    json.preprocessed_array([json.string(title), text(subtitle)]),
-  )
-}
-
-pub fn spanner(t: Table, label: String, columns: List(String)) -> Table {
-  verb(
-    t,
-    "tabSpanner",
-    json.object([#("label", json.string(label)), #("columns", names(columns))]),
-  )
-}
-
-pub fn labels(t: Table, labels: List(#(String, String))) -> Table {
-  let pairs = json.map(labels, fn(p) { #(p.0, json.string(p.1)) })
-  verb(t, "colsLabel", json.object([#("labels", json.object(pairs))]))
-}
-
-pub fn fmt_integer(t: Table, columns columns: List(String)) -> Table {
-  verb(t, "fmtInteger", json.object([#("columns", names(columns))]))
-}
-
-pub fn fmt_number(
-  t: Table,
-  columns columns: List(String),
-  decimals decimals: Int,
-) -> Table {
-  verb(
-    t,
-    "fmtNumber",
+/// A footnote: a mark on each of these parts of the table, and the note at its foot.
+///
+/// ```gleam
+/// table
+/// |> tabelline.footnote(
+///   Plain("Moons confirmed by 2025."),
+///   at: [location.column_labels(["moons"])],
+/// )
+/// ```
+///
+pub fn footnote(
+  table: Table(row),
+  note: Text,
+  at locations: List(Location),
+) -> Table(row) {
+  add(
+    table,
+    "tabFootnote",
     json.object([
-      #("columns", names(columns)),
-      #("decimals", json.int(decimals)),
+      #("note", text(note)),
+      #("locations", json.array(locations, of: location.to_json)),
     ]),
   )
 }
 
-pub fn data_color(
-  t: Table,
-  columns columns: List(String),
-  palette palette: String,
-) -> Table {
-  verb(
-    t,
+// --- COLUMNS ------------------------------------------------------------------
+
+/// The labels shown for these columns, instead of their names.
+///
+/// ```gleam
+/// table
+/// |> tabelline.labels([
+///   #("diameter", Plain("Diameter (km)")),
+///   #("mass", Html("Mass (10<sup>24</sup> kg)")),
+/// ])
+/// ```
+///
+pub fn labels(table: Table(row), labels: List(#(String, Text))) -> Table(row) {
+  let labels = json.map(labels, fn(label) { #(label.0, text(label.1)) })
+  add(table, "colsLabel", json.object([#("labels", json.object(labels))]))
+}
+
+/// A spanner: a label over these columns, which are moved next to each other.
+///
+/// ```gleam
+/// table |> tabelline.spanner(Plain("Size"), over: ["diameter", "mass"])
+/// ```
+///
+pub fn spanner(
+  table: Table(row),
+  label: Text,
+  over columns: List(String),
+) -> Table(row) {
+  add(
+    table,
+    "tabSpanner",
+    json.object([#("label", text(label)), #("columns", names(columns))]),
+  )
+}
+
+/// These columns are not shown. A hidden column can still be read by a style or a format.
+///
+pub fn hide(table: Table(row), columns: List(String)) -> Table(row) {
+  add(table, "colsHide", json.object([#("columns", names(columns))]))
+}
+
+// --- VALUES -------------------------------------------------------------------
+
+/// The values of these columns written with a format.
+///
+/// ```gleam
+/// table
+/// |> tabelline.format(["diameter"], with: format.integer())
+/// |> tabelline.format(["mass", "distance"], with: format.number(decimals: 1))
+/// ```
+///
+pub fn format(
+  table: Table(row),
+  columns: List(String),
+  with format: Format,
+) -> Table(row) {
+  let #(name, arguments) =
+    format.to_verb(format, names(columns), rows.to_json(rows.all()))
+  add(table, name, arguments)
+}
+
+/// Missing values in these columns written as `text` (by default they show as a dash).
+///
+/// ```gleam
+/// table |> tabelline.missing(["rings"], show: "none")
+/// ```
+///
+pub fn missing(
+  table: Table(row),
+  columns: List(String),
+  show text: String,
+) -> Table(row) {
+  add(
+    table,
+    "subMissing",
+    json.object([
+      #("columns", names(columns)),
+      #("missingText", json.string(text)),
+    ]),
+  )
+}
+
+/// The cells of these columns coloured by their value, along a palette: the lowest value
+/// gets the palette's first colour, the highest its last.
+///
+/// ```gleam
+/// table |> tabelline.colour_scale(["moons"], with: Blues)
+/// ```
+///
+pub fn colour_scale(
+  table: Table(row),
+  columns: List(String),
+  with palette: Palette,
+) -> Table(row) {
+  add(
+    table,
     "dataColor",
     json.object([
       #("columns", names(columns)),
-      #("palette", json.string(palette)),
+      #("palette", palette_json(palette)),
     ]),
   )
 }
 
-pub fn style_cells(
-  t: Table,
+// --- STYLES -------------------------------------------------------------------
+
+/// Styles for these parts of the table.
+///
+/// ```gleam
+/// table
+/// |> tabelline.style([style.bold()], at: [
+///   location.body(columns: ["moons"], rows: rows.where_int("moons", Greater, 50)),
+/// ])
+/// ```
+///
+pub fn style(
+  table: Table(row),
   styles: List(Style),
   at locations: List(Location),
-) -> Table {
-  verb(
-    t,
+) -> Table(row) {
+  add(
+    table,
     "tabStyle",
     json.object([
-      #("style", json.array(styles, style)),
-      #("locations", json.array(locations, location)),
+      #("style", json.array(styles, of: style.to_json)),
+      #("locations", json.array(locations, of: location.to_json)),
     ]),
   )
 }
 
-pub fn footnote(t: Table, note: String, at locations: List(Location)) -> Table {
-  verb(
-    t,
-    "tabFootnote",
-    json.object([
-      #("note", json.string(note)),
-      #("locations", json.array(locations, location)),
-    ]),
+// --- SUMMARIES ----------------------------------------------------------------
+
+/// Summary rows at the end of each row group, one for each label: `#("Total", Sum)`.
+///
+/// ```gleam
+/// table |> tabelline.summary_rows([#("Total", Sum), #("Mean", Mean)], of: ["moons"])
+/// ```
+///
+pub fn summary_rows(
+  table: Table(row),
+  rows: List(#(String, Aggregate)),
+  of columns: List(String),
+) -> Table(row) {
+  add(
+    table,
+    "summaryRows",
+    json.object([#("fns", aggregates(rows)), #("columns", names(columns))]),
   )
 }
 
-pub fn source_note(t: Table, note: String) -> Table {
-  verb(t, "tabSourceNote", json.preprocessed_array([json.string(note)]))
+/// Summary rows at the end of the table, over all its rows.
+///
+/// ```gleam
+/// table |> tabelline.grand_summary_rows([#("Total", Sum)], of: ["moons"])
+/// ```
+///
+pub fn grand_summary_rows(
+  table: Table(row),
+  rows: List(#(String, Aggregate)),
+  of columns: List(String),
+) -> Table(row) {
+  add(
+    table,
+    "grandSummaryRows",
+    json.object([#("fns", aggregates(rows)), #("columns", names(columns))]),
+  )
 }
 
-// ----------------------------------------------------------------------------------- render
+// --- ANY VERB -----------------------------------------------------------------
 
-/// The table as JSON, the spec libtabelline reads.
-pub fn to_spec(t: Table) -> Json {
-  json.object([
-    #("data", json.object([#("columns", json.object(t.columns))])),
-    ..concat(t.settings, [#("verbs", json.preprocessed_array(t.verbs))])
-  ])
+/// Any of tabelline's verbs, by its name (`"fmtDate"` or `"fmt_date"`), with its arguments
+/// written as a JSON object, for what this module has no function for yet:
+///
+/// ```gleam
+/// table |> tabelline.verb("fmt_date", "{\"columns\": \"day\", \"dateStyle\": \"iso\"}")
+/// ```
+///
+/// Arguments that are not valid JSON make the table fail to draw, with a `Rejected` error.
+///
+pub fn verb(table: Table(row), name: String, arguments: String) -> Table(row) {
+  add(table, name, json.preprocessed(arguments))
+}
+
+fn add(table: Table(row), name: String, arguments: Json) -> Table(row) {
+  Table(..table, verbs: [#(name, arguments), ..table.verbs])
+}
+
+// --- DRAWING ------------------------------------------------------------------
+
+/// The table as HTML, with its own styles: to put in a page.
+///
+pub fn to_html(table: Table(row)) -> Result(String, Error) {
+  render(table, "html")
+}
+
+/// The table as a whole HTML page.
+///
+pub fn to_page(table: Table(row)) -> Result(String, Error) {
+  render(table, "page")
+}
+
+/// The table as text, drawn with box characters: for a terminal.
+///
+pub fn to_text(table: Table(row)) -> Result(String, Error) {
+  render(table, "text")
+}
+
+/// The table in Markdown, for a README.
+///
+pub fn to_markdown(table: Table(row)) -> Result(String, Error) {
+  render(table, "markdown")
+}
+
+/// The table as the JSON tabelline reads: its data, its settings and its steps.
+///
+pub fn to_json(table: Table(row)) -> String {
+  json.to_string(spec(table))
+}
+
+/// A sentence that says what went wrong.
+///
+pub fn describe_error(error: Error) -> String {
+  case error {
+    DuplicateColumn(name:) ->
+      "the table has two columns named \""
+      <> name
+      <> "\": give them different names"
+    Rejected(reason:) -> "tabelline could not draw the table: " <> reason
+  }
+}
+
+fn render(table: Table(row), format: String) -> Result(String, Error) {
+  case duplicate(json.reverse(table.columns)) {
+    Ok(name) -> Error(DuplicateColumn(name:))
+    Error(Nil) ->
+      case render_spec(to_json(table), format) {
+        Ok(output) -> Ok(output)
+        Error(reason) -> Error(Rejected(reason:))
+      }
+  }
 }
 
 @external(erlang, "tabelline_ffi", "render")
 fn render_spec(spec: String, format: String) -> Result(String, String)
 
-pub fn render(t: Table, format: Format) -> Result(String, String) {
-  let f = case format {
-    AsHtml -> "html"
-    AsPage -> "page"
-    AsText -> "text"
-    AsMarkdown -> "markdown"
+// --- HELPERS ------------------------------------------------------------------
+
+fn spec(table: Table(row)) -> Json {
+  let columns =
+    json.map(json.reverse(table.columns), fn(column) {
+      #(column.0, json.array(table.rows, of: column.1))
+    })
+  let verbs = case table.header {
+    NoHeader -> json.reverse(table.verbs)
+    Header(title:, subtitle:) -> {
+      let arguments = case subtitle {
+        Ok(subtitle) -> [#("title", title), #("subtitle", subtitle)]
+        Error(Nil) -> [#("title", title)]
+      }
+      [#("tabHeader", json.object(arguments)), ..json.reverse(table.verbs)]
+    }
   }
-  render_spec(json.to_string(to_spec(t)), f)
+  json.object([
+    #("data", json.object([#("columns", json.object(columns))])),
+    #("verbs", json.array(verbs, of: fn(verb) { json.object([verb]) })),
+    ..json.reverse(table.settings)
+  ])
 }
 
-fn append(xs: List(a), x: a) -> List(a) {
-  case xs {
-    [] -> [x]
-    [y, ..rest] -> [y, ..append(rest, x)]
+fn setting(table: Table(row), key: String, value: Json) -> Table(row) {
+  Table(..table, settings: [#(key, value), ..table.settings])
+}
+
+fn text(text: Text) -> Json {
+  case text {
+    Plain(text) -> json.string(text)
+    Markdown(text) -> json.object([#("md", json.string(text))])
+    Html(text) -> json.object([#("html", json.string(text))])
   }
 }
 
-fn concat(xs: List(a), ys: List(a)) -> List(a) {
-  case xs {
-    [] -> ys
-    [x, ..rest] -> [x, ..concat(rest, ys)]
+fn names(columns: List(String)) -> Json {
+  json.array(columns, of: json.string)
+}
+
+fn palette_json(palette: Palette) -> Json {
+  case palette {
+    Blues -> json.string("blues")
+    Greens -> json.string("greens")
+    Reds -> json.string("reds")
+    Viridis -> json.string("viridis")
+    RedBlue -> json.string("rdbu")
+    RedYellowGreen -> json.string("rdylgn")
+    Colours(colours) -> names(colours)
+  }
+}
+
+fn aggregates(rows: List(#(String, Aggregate))) -> Json {
+  json.object(json.map(rows, fn(row) { #(row.0, aggregate(row.1)) }))
+}
+
+fn aggregate(aggregate: Aggregate) -> Json {
+  json.string(case aggregate {
+    Sum -> "sum"
+    Mean -> "mean"
+    Median -> "median"
+    Min -> "min"
+    Max -> "max"
+    Count -> "count"
+    StandardDeviation -> "sd"
+  })
+}
+
+/// The first name that appears twice, if any.
+///
+fn duplicate(columns: List(#(String, a))) -> Result(String, Nil) {
+  case columns {
+    [] -> Error(Nil)
+    [#(name, _), ..rest] ->
+      case has_name(rest, name) {
+        True -> Ok(name)
+        False -> duplicate(rest)
+      }
+  }
+}
+
+fn has_name(columns: List(#(String, a)), name: String) -> Bool {
+  case columns {
+    [] -> False
+    [#(other, _), ..rest] -> other == name || has_name(rest, name)
   }
 }

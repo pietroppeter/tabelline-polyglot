@@ -44,6 +44,14 @@ jobs:
           otp-version: "28"      # 27 or later: the Erlang port writes the spec with OTP's json
           elixir-version: "1.19"
           gleam-version: "1.19.1"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      # Scala 3: tools/polyglot.nim downloads the compiler's jars from Maven Central
 
       - name: Every port, compared with Nim
         env:
@@ -51,3 +59,13 @@ jobs:
         run: |
           nim r --hints:off tools/polyglot.nim | tee report.txt
           { echo '```text'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      # the bindings' own tests, once the library and the NIF are built by the step above
+      - name: Gleam tests
+        working-directory: gleam
+        run: TABELLINE_NIF_DIR=$PWD/../build/beam/priv gleam test
+      - name: Go tests
+        working-directory: go
+        run: go test ./...
+      - name: Ruby tests
+        run: ruby ruby/test/test_tabelline.rb

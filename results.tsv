@@ -1,11 +1,14 @@
 port	how	ms	result
-nim	tabelline itself, the reference	5	same HTML
+nim	tabelline itself, the reference	4	same HTML
 spec	C, layer 1: the JSON spec in one call	5	same HTML
-c	C, layer 2: typed columns, one verb at a time	5	same HTML
-zig	extern fns, arguments written by std.json	23	same HTML
+c	C, layer 2: typed columns, one verb at a time	13	same HTML
+zig	extern fns, arguments written by std.json	18	same HTML
 rust	extern "C", a builder, list! and args! macros	5	same HTML
-julia	ccall; one function per verb, made at load time	2494	same HTML
-jvm	Java 22+ foreign function API (no JNI)	215	same HTML
-erlang	one NIF, the spec written by OTP's json	179	same HTML
-gleam	a table as a Gleam value, the same NIF	267	same HTML
-elixir	keyword lists and pipes, the same NIF	534	same HTML
+julia	ccall; one function per verb, made at load time	3217	same HTML
+jvm	Java 22+ foreign function API (no JNI)	167	same HTML
+erlang	one NIF, the spec written by OTP's json	202	same HTML
+gleam	a typed table of your own records, the same NIF	210	same HTML
+go	cgo; a slice of structs, tags name the columns	6	same HTML
+scala	Scala 3 on the FFM API; columns from a case class	272	same HTML
+ruby	Fiddle (standard library); a block, every verb a method	63	same HTML
+elixir	keyword lists and pipes, the same NIF	531	same HTML

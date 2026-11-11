@@ -24,6 +24,24 @@ let javaHome = getEnv("JAVA_HOME")
 let java = if javaHome.len > 0: javaHome / "bin" / "java" else: "java"
 let javac = if javaHome.len > 0: javaHome / "bin" / "javac" else: "javac"
 let elixirBin = getEnv("ELIXIR_BIN")
+
+# Scala 3's compiler, from Maven Central (no sbt or scala-cli needed): these jars, into build/scala/jars.
+const scalaJars = [
+  "org/scala-lang:scala3-compiler_3:3.10.1", "org/scala-lang:scala3-interfaces:3.10.1",
+  "org/scala-lang:tasty-core_3:3.10.1", "org/scala-lang:scala3-library_3:3.10.1",
+  "org/scala-lang:scala-library:3.10.1", "org/ow2/asm:asm:9.11.1", "org/ow2/asm:asm-util:9.11.1",
+  "org/ow2/asm:asm-tree:9.11.1", "org/ow2/asm:asm-analysis:9.11.1", "org/ow2/asm:asm-commons:9.11.1",
+  "org/scala-sbt:compiler-interface:1.12.1", "org/scala-sbt:util-interface:1.12.4"]
+proc jarFile(spec: string): string =
+  let p = spec.split(':')
+  p[1] & "-" & p[2] & ".jar"
+proc jarUrl(spec: string): string =
+  let p = spec.split(':')
+  "https://repo1.maven.org/maven2/" & p[0] & "/" & p[1] & "/" & p[2] & "/" & jarFile(spec)
+let scalaFetch = "mkdir -p build/scala/jars && cd build/scala/jars && " & scalaJars.mapIt(
+  "{ [ -f " & jarFile(it) & " ] || curl -sSfL --retry 5 --retry-delay 5 -o " & jarFile(it) & " " & jarUrl(it) & "; }").join(" && ")
+let scalaCompiler = scalaJars.mapIt("build/scala/jars/" & jarFile(it)).join(":")
+let scalaLib = "build/scala/jars/scala-library-3.10.1.jar:build/scala/jars/scala3-library_3-3.10.1.jar"
 let elixir = if elixirBin.len > 0: elixirBin / "elixir" else: "elixir"
 
 proc pathWith(dirs: varargs[string]): string =
@@ -68,9 +86,18 @@ let ports = @[
                   " -o build/beam/priv/tabelline_nif.so",
                 erlc & " -o build/beam/ebin beam/src/tabelline_nif.erl beam/src/tabelline.erl beam/src/planets.erl"],
        run: erl & " -noshell -pa build/beam/ebin -eval 'planets:main(), halt().'"),
-  Port(name: "gleam", how: "a table as a Gleam value, the same NIF",
+  Port(name: "gleam", how: "a typed table of your own records, the same NIF",
        steps: @["cd gleam && " & tool("GLEAM", "gleam") & " build"],
        run: "TABELLINE_NIF_DIR=build/beam/priv " & erl & " -noshell -pa gleam/build/dev/erlang/tabelline/ebin -eval 'planets:main(), halt().'"),
+  Port(name: "go", how: "cgo; a slice of structs, tags name the columns",
+       steps: @["cd go && go build -o ../build/planets_go ./examples/planets"], run: "build/planets_go"),
+  Port(name: "scala", how: "Scala 3 on the FFM API; columns from a case class",
+       steps: @[scalaFetch, "mkdir -p build/scala/classes && " & java & " -cp " & scalaCompiler &
+                  " dotty.tools.dotc.Main -encoding UTF-8 -d build/scala/classes -classpath " & scalaLib &
+                  " scala/Tabelline.scala scala/Planets.scala"],
+       run: java & " --enable-native-access=ALL-UNNAMED -cp build/scala/classes:" & scalaLib & " main"),
+  Port(name: "ruby", how: "Fiddle (standard library); a block, every verb a method",
+       steps: @[], run: "ruby ruby/planets.rb"),
   Port(name: "elixir", how: "keyword lists and pipes, the same NIF",
        steps: @[], run: "TABELLINE_NIF_DIR=build/beam/priv ELIXIR_ERL_OPTIONS=+fnu " & elixir & " -pa build/beam/ebin elixir/planets.exs")]
 
