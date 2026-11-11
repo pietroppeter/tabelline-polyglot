@@ -1,5 +1,5 @@
-//// JSON values, just enough to write a table's spec (the shape of gleam_json's API, which the
-//// sandbox could not download).
+//// JSON values, just enough to write a table's spec. It has the shape of gleam_json's API:
+//// tabelline has no dependencies, so it builds in a sandbox that cannot reach Hex.
 
 pub opaque type Json {
   Json(text: String)
@@ -70,4 +70,20 @@ fn join(xs: List(a), f: fn(a) -> String) -> String {
     [x] -> f(x)
     [x, ..rest] -> f(x) <> "," <> join(rest, f)
   }
+}
+
+pub fn reverse(xs: List(a)) -> List(a) {
+  do_reverse(xs, [])
+}
+
+fn do_reverse(xs: List(a), acc: List(a)) -> List(a) {
+  case xs {
+    [] -> acc
+    [x, ..rest] -> do_reverse(rest, [x, ..acc])
+  }
+}
+
+/// JSON text, as it is (not checked).
+pub fn preprocessed(text: String) -> Json {
+  Json(text)
 }
