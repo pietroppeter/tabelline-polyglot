@@ -1,0 +1,9 @@
+[package]
+name = "tabelline"
+version = "0.0.1"
+edition = "2021"
+description = "Great tables for Rust: tabelline (Nim) behind its C ABI. A proof of concept."
+license = "MIT"
+links = "tabelline"
+
+[dependencies]

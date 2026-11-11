@@ -1,0 +1,10 @@
+name = "tabelline"
+version = "0.0.1"
+description = "Great tables for Gleam: tabelline (Nim) on the BEAM through a NIF. A proof of concept."
+licences = ["MIT"]
+target = "erlang"
+
+# No dependencies, not even gleam_stdlib: the sandbox it was written in could not reach Hex.
+[dependencies]
+
+[dev-dependencies]

@@ -1,0 +1,46 @@
+{
+  "items": {
+    "tabelline": {
+      "dir": "$deps/tabelline",
+      "url": "https://github.com/pietroppeter/tabelline",
+      "commit": "27071b5fa60b8b5a389a4914203f9ba3f2f6a31e",
+      "version": ""
+    }
+  },
+  "nimcfg": [
+    "############# begin Atlas config section ##########",
+    "--noNimblePath",
+    "--path:\"deps/tabelline/src\"",
+    "--define:\"features.tabelline_polyglot.build\"",
+    "--define:\"feature.tabelline_polyglot.build\"",
+    "############# end Atlas config section   ##########",
+    ""
+  ],
+  "nimbleFile": {
+    "filename": "tabelline_polyglot.nimble",
+    "content": [
+      "# Package",
+      "",
+      "version       = \"0.1.0\"",
+      "author        = \"Pietro Peterlongo\"",
+      "description   = \"tabelline as a C library, and proofs of concept in eight languages that call it\"",
+      "license       = \"MIT\"",
+      "srcDir        = \".\"  # capi/ is imported as `capi/spec` (tabelline's docs show it)",
+      "",
+      "# Dependencies",
+      "",
+      "requires \"nim >= 2.2.0\"",
+      "# tabelline is in a feature so that tabelline's own docs, which import capi/ from here, do not",
+      "# get a second copy of tabelline: `atlas install --feature=build` (tools/setup.sh) in this repository.",
+      "",
+      "feature \"build\":",
+      "  requires \"https://github.com/pietroppeter/tabelline#head\"  # 0.2 is not tagged yet",
+      ""
+    ]
+  },
+  "hostOS": "linux",
+  "hostCPU": "amd64",
+  "nimVersion": "2.2.4 f7145dd26efeeeb6eeae6fff649db244d81b212d",
+  "gccVersion": "13.3.0",
+  "clangVersion": ""
+}
