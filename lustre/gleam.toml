@@ -1,0 +1,12 @@
+name = "tabelline_lustre"
+version = "0.0.1"
+description = "tabelline in the browser: a Lustre app that renders tables with tabelline compiled to JavaScript."
+licences = ["MIT"]
+target = "javascript"
+
+[javascript]
+runtime = "node"
+
+[dependencies]
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
+lustre = ">= 5.7.0 and < 6.0.0"
