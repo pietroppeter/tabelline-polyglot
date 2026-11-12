@@ -3,7 +3,7 @@
     "tabelline": {
       "dir": "$deps/tabelline",
       "url": "https://github.com/pietroppeter/tabelline",
-      "commit": "27071b5fa60b8b5a389a4914203f9ba3f2f6a31e",
+      "commit": "35fc6182cef9e38e46d33852ad2791b23045eba0",
       "version": ""
     }
   },

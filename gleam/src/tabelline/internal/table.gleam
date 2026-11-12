@@ -12,7 +12,14 @@ pub type Table(row) {
     header: Header,
     /// The verbs, the last one first.
     verbs: List(#(String, Json)),
+    /// Where the data comes from: the rows and columns above, or one of tabelline's datasets.
+    source: Source,
   )
+}
+
+pub type Source {
+  FromRows
+  FromDataset(name: String)
 }
 
 pub type Header {

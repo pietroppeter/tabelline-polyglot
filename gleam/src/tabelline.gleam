@@ -35,7 +35,7 @@
 
 import tabelline/format.{type Format}
 import tabelline/internal/json.{type Json}
-import tabelline/internal/table.{Header, NoHeader, Table}
+import tabelline/internal/table.{FromDataset, FromRows, Header, NoHeader, Table}
 import tabelline/location.{type Location}
 import tabelline/rows
 import tabelline/style.{type Style}
@@ -53,6 +53,27 @@ pub type Text {
   Plain(String)
   Markdown(String)
   Html(String)
+}
+
+/// The datasets that come with tabelline, the ones of gt and Great Tables among them.
+///
+pub type Dataset {
+  /// The eight planets (NASA's Planetary Fact Sheet).
+  Planets
+  /// gt's tiny example table, a column of each type.
+  Exibble
+  /// 47 deluxe cars of the 2014-2017 model years (gt's `gtcars`).
+  Gtcars
+  /// The population of every country, every year from 1960 to 2022 (gt's `countrypops`).
+  Countrypops
+  /// Daily tests of a patient with yellow fever (gt's `illness`).
+  Illness
+  /// The stations of the Paris Metro (gt's `metro`).
+  Metro
+  /// The 194 islands of the Mediterranean.
+  Isole
+  /// The 95 largest cities of the European Union.
+  Citta
 }
 
 /// The colours a colour scale goes through, from the lowest value to the highest.
@@ -105,7 +126,54 @@ pub type Error {
 /// ```
 ///
 pub fn from_list(rows: List(row)) -> Table(row) {
-  Table(rows:, columns: [], settings: [], header: NoHeader, verbs: [])
+  Table(
+    rows:,
+    columns: [],
+    settings: [],
+    header: NoHeader,
+    verbs: [],
+    source: FromRows,
+  )
+}
+
+/// A table of one of the datasets that come with tabelline, with its own columns.
+///
+/// ```gleam
+/// tabelline.from_dataset(Gtcars) |> tabelline.preview(top: 5, bottom: 1)
+/// ```
+///
+/// A build of tabelline for JavaScript may leave the bigger ones out (all but `Planets` and
+/// `Exibble`), to weigh less: then drawing the table is a `Rejected` error that says so.
+///
+pub fn from_dataset(dataset: Dataset) -> Table(Nil) {
+  Table(
+    rows: [],
+    columns: [],
+    settings: [],
+    header: NoHeader,
+    verbs: [],
+    source: FromDataset(dataset_name(dataset)),
+  )
+}
+
+/// Only the first `top` rows and the last `bottom` rows, with a row between them that says how
+/// many are left out, and the rows' numbers in the stub: a look at a big table (gt's
+/// `gt_preview()`). The stub and the groups are not used.
+///
+/// ```gleam
+/// tabelline.from_dataset(Countrypops) |> tabelline.preview(top: 5, bottom: 1)
+/// ```
+///
+pub fn preview(
+  table: Table(row),
+  top top: Int,
+  bottom bottom: Int,
+) -> Table(row) {
+  setting(
+    table,
+    "preview",
+    json.object([#("topN", json.int(top)), #("bottomN", json.int(bottom))]),
+  )
 }
 
 /// The stub: the column whose values name the rows, shown first and set apart.
@@ -452,6 +520,7 @@ fn render(table: Table(row), format: String) -> Result(String, Error) {
 }
 
 @external(erlang, "tabelline_ffi", "render")
+@external(javascript, "./tabelline_ffi.mjs", "render")
 fn render_spec(spec: String, format: String) -> Result(String, String)
 
 // --- HELPERS ------------------------------------------------------------------
@@ -471,11 +540,28 @@ fn spec(table: Table(row)) -> Json {
       [#("tabHeader", json.object(arguments)), ..json.reverse(table.verbs)]
     }
   }
+  let data = case table.source {
+    FromRows -> json.object([#("columns", json.object(columns))])
+    FromDataset(name:) -> json.object([#("dataset", json.string(name))])
+  }
   json.object([
-    #("data", json.object([#("columns", json.object(columns))])),
+    #("data", data),
     #("verbs", json.array(verbs, of: fn(verb) { json.object([verb]) })),
     ..json.reverse(table.settings)
   ])
+}
+
+fn dataset_name(dataset: Dataset) -> String {
+  case dataset {
+    Planets -> "planets"
+    Exibble -> "exibble"
+    Gtcars -> "gtcars"
+    Countrypops -> "countrypops"
+    Illness -> "illness"
+    Metro -> "metro"
+    Isole -> "isole"
+    Citta -> "citta"
+  }
 }
 
 fn setting(table: Table(row), key: String, value: Json) -> Table(row) {

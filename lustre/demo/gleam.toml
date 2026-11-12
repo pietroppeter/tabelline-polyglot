@@ -1,0 +1,11 @@
+name = "demo"
+version = "0.1.0"
+description = "tabelline in the browser: a Lustre app that builds its tables again at every change."
+licences = ["MIT"]
+target = "javascript"
+
+[dependencies]
+tabelline = { path = "../../gleam" }
+tabelline_lustre = { path = ".." }
+lustre = ">= 5.7.0 and < 6.0.0"
+gleam_stdlib = ">= 0.60.0 and < 2.0.0"
